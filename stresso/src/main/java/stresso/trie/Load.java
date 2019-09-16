@@ -20,6 +20,7 @@ package stresso.trie;
 import java.io.File;
 import java.io.IOException;
 
+import com.google.common.util.concurrent.RateLimiter;
 import org.apache.fluo.api.client.Loader;
 import org.apache.fluo.api.config.FluoConfiguration;
 import org.apache.fluo.mapreduce.FluoOutputFormat;
@@ -41,9 +42,22 @@ public class Load extends Configured implements Tool {
 
   public static class LoadMapper extends Mapper<LongWritable, NullWritable, Loader, NullWritable> {
 
+    RateLimiter limiter = null;
+
+    @Override
+    protected void setup(Context context) throws IOException, InterruptedException {
+
+      double limit = Double.parseDouble(context.getConfiguration().get("stresso.load.limit", "0"));
+      if (limit > 0) {
+        limiter = RateLimiter.create(limit);
+      }
+    }
+
     @Override
     protected void map(LongWritable key, NullWritable val, Context context)
         throws IOException, InterruptedException {
+      if (limiter != null)
+        limiter.acquire();
       context.write(new NumberLoader(key.get()), val);
     }
   }
@@ -51,9 +65,9 @@ public class Load extends Configured implements Tool {
   @Override
   public int run(String[] args) throws Exception {
 
-    if (args.length != 3) {
+    if (args.length != 3 && args.length != 4) {
       log.error("Usage: " + this.getClass().getSimpleName()
-          + " <fluo conn props> <app name> <input dir>");
+          + " <fluo conn props> <app name> <input dir> [limit]");
       return -1;
     }
 
@@ -79,6 +93,10 @@ public class Load extends Configured implements Tool {
 
     job.getConfiguration().setBoolean("mapreduce.map.speculative", false);
     job.getConfiguration().set("mapreduce.job.classloader", "true");
+
+    if (args.length > 3) {
+      job.getConfiguration().set("stresso.load.limit", args[3]);
+    }
 
     boolean success = job.waitForCompletion(true);
     return success ? 0 : 1;
