@@ -32,7 +32,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.base.Preconditions;
+import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.client.Connector;
@@ -58,6 +58,9 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Preconditions;
+
 import webindex.core.WebIndexConfig;
 import webindex.core.models.Page;
 import webindex.core.models.UriInfo;
@@ -68,7 +71,7 @@ public class IndexEnv {
   private static final Logger log = LoggerFactory.getLogger(IndexEnv.class);
 
   private final String accumuloTable;
-  private Connector conn;
+  private AccumuloClient client;
   private FluoConfiguration fluoConfig;
   private Path accumuloTempDir;
   private Path fluoTempDir;
@@ -90,7 +93,7 @@ public class IndexEnv {
     this.accumuloTable = accumuloTable;
     this.numBuckets = numBuckets;
     this.numTablets = numTablets;
-    conn = AccumuloUtil.getConnector(fluoConfig);
+    client = AccumuloUtil.getClient(fluoConfig);
     fluoTempDir = new Path(hdfsTempDir + "/fluo");
     accumuloTempDir = new Path(hdfsTempDir + "/accumulo");
   }
@@ -181,21 +184,21 @@ public class IndexEnv {
   }
 
   public void initAccumuloIndexTable() {
-    if (conn.tableOperations().exists(accumuloTable)) {
+    if (client.tableOperations().exists(accumuloTable)) {
       try {
-        conn.tableOperations().delete(accumuloTable);
+        client.tableOperations().delete(accumuloTable);
       } catch (TableNotFoundException | AccumuloSecurityException | AccumuloException e) {
         throw new IllegalStateException("Failed to delete Accumulo table " + accumuloTable, e);
       }
     }
     try {
-      conn.tableOperations().create(accumuloTable);
+      client.tableOperations().create(accumuloTable);
     } catch (AccumuloException | AccumuloSecurityException | TableExistsException e) {
       throw new IllegalStateException("Failed to create Accumulo table " + accumuloTable, e);
     }
 
     try {
-      conn.tableOperations().addSplits(accumuloTable, IndexEnv.getAccumuloDefaultSplits());
+      client.tableOperations().addSplits(accumuloTable, IndexEnv.getAccumuloDefaultSplits());
     } catch (AccumuloException | AccumuloSecurityException | TableNotFoundException e) {
       throw new IllegalStateException("Failed to add splits to Accumulo table " + accumuloTable, e);
     }
@@ -238,14 +241,14 @@ public class IndexEnv {
   public void saveRowColBytesToFluo(JavaSparkContext ctx, JavaPairRDD<RowColumn, Bytes> data)
       throws Exception {
     new FluoSparkHelper(fluoConfig, ctx.hadoopConfiguration(), fluoTempDir)
-        .bulkImportRcvToFluo(data, new BulkImportOptions().setAccumuloConnector(conn));
+        .bulkImportRcvToFluo(data, new BulkImportOptions().setAccumuloConnector(Connector.from(client)));
   }
 
   public void saveRowColBytesToAccumulo(JavaSparkContext ctx, JavaPairRDD<RowColumn, Bytes> data)
       throws Exception {
     new FluoSparkHelper(fluoConfig, ctx.hadoopConfiguration(), accumuloTempDir)
         .bulkImportRcvToAccumulo(data, accumuloTable,
-            new BulkImportOptions().setAccumuloConnector(conn));
+            new BulkImportOptions().setAccumuloConnector(Connector.from(client)));
   }
 
   public static List<String> getPathsRange(String ccPaths, String range) {

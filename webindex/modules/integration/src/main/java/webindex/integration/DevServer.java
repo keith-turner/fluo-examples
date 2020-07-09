@@ -22,9 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.beust.jcommander.JCommander;
-import com.beust.jcommander.ParameterException;
-import com.google.gson.Gson;
+import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.minicluster.MiniAccumuloCluster;
 import org.apache.accumulo.minicluster.MiniAccumuloConfig;
 import org.apache.fluo.api.client.FluoAdmin;
@@ -37,6 +35,11 @@ import org.apache.fluo.api.mini.MiniFluo;
 import org.apache.fluo.recipes.test.AccumuloExportITBase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.ParameterException;
+import com.google.gson.Gson;
+
 import webindex.core.IndexClient;
 import webindex.core.models.Page;
 import webindex.data.fluo.PageLoader;
@@ -113,7 +116,7 @@ public class DevServer {
     env.setFluoTableSplits();
 
     log.info("Starting web server");
-    client = new IndexClient(exportTable, cluster.getConnector("root", "secret"));
+    client = new IndexClient(exportTable, cluster.createAccumuloClient("root", new PasswordToken("secret")));
     webServer.start(client, webPort, templatePath);
 
     log.info("Loading data from {}", dataPath);

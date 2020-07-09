@@ -17,6 +17,10 @@
 
 package webindex.ui;
 
+import static spark.Spark.get;
+import static spark.Spark.halt;
+import static spark.Spark.staticFiles;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,15 +29,17 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
-import com.google.gson.Gson;
-import freemarker.template.Configuration;
-import org.apache.accumulo.core.client.Connector;
+import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.fluo.api.client.FluoAdmin;
 import org.apache.fluo.api.client.FluoFactory;
 import org.apache.fluo.api.config.FluoConfiguration;
 import org.apache.fluo.core.util.AccumuloUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.Gson;
+
+import freemarker.template.Configuration;
 import spark.ModelAndView;
 import spark.Request;
 import spark.Spark;
@@ -44,10 +50,6 @@ import webindex.core.models.Links;
 import webindex.core.models.Page;
 import webindex.core.models.Pages;
 import webindex.core.models.TopResults;
-
-import static spark.Spark.get;
-import static spark.Spark.halt;
-import static spark.Spark.staticFiles;
 
 public class WebServer {
 
@@ -151,7 +153,7 @@ public class WebServer {
         fluoConfig.setProperty(entry.getKey(), entry.getValue());
       }
     }
-    Connector conn = AccumuloUtil.getConnector(fluoConfig);
+    AccumuloClient conn = AccumuloUtil.getClient(fluoConfig);
     IndexClient client = new IndexClient(webIndexConfig.accumuloIndexTable, conn);
     WebServer webServer = new WebServer();
     webServer.start(client, 4567, null);

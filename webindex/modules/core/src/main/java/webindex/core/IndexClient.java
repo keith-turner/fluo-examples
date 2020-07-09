@@ -23,8 +23,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import com.google.gson.Gson;
-import org.apache.accumulo.core.client.Connector;
+import org.apache.accumulo.core.client.AccumuloClient;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.lexicoder.Lexicoder;
@@ -35,13 +34,16 @@ import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.security.Authorizations;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.data.RowColumn;
 import org.apache.fluo.recipes.accumulo.export.function.AccumuloTranslator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.io.BaseEncoding;
+import com.google.gson.Gson;
+
 import webindex.core.models.DomainStats;
 import webindex.core.models.Link;
 import webindex.core.models.Links;
@@ -60,11 +62,11 @@ public class IndexClient {
   private static final Logger log = LoggerFactory.getLogger(IndexClient.class);
   private static final int PAGE_SIZE = 25;
 
-  private Connector conn;
+  private AccumuloClient conn;
   private String accumuloIndexTable;
   private Gson gson = new Gson();
 
-  public IndexClient(String accumuloIndexTable, Connector conn) {
+  public IndexClient(String accumuloIndexTable, AccumuloClient conn) {
     this.accumuloIndexTable = accumuloIndexTable;
     this.conn = conn;
   }
@@ -310,7 +312,7 @@ public class IndexClient {
 
   public static String revEncodeLong(Long num) {
     Lexicoder<Long> lexicoder = new ReverseLexicoder<>(new ULongLexicoder());
-    return Hex.encodeHexString(lexicoder.encode(num));
+    return BaseEncoding.base16().encode(lexicoder.encode(num));
   }
 
   public static String encodeDomainRankUri(String domain, long linksTo, String uri) {
